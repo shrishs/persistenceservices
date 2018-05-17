@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: kafka
+metadata:
+  annotations:
+    description: kafka Deployment and Runtime Components
+    iconClass: icon-java
+    tags: java,kafka
+  name: kafka
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      application: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}-headless
+  spec:
+    clusterIP: None
+    portalIP: None
+    ports:
+    - name: server
+      port: 9092
+      protocol: TCP
+      targetPort: 9092
+    selector:
+      application: ${APPLICATION_NAME}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      prometheus.io/port: '9404'
+      prometheus.io/scheme: http
+      prometheus.io/scrape: 'true'
+    labels:
+      application: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}
+  spec:
+    ports:
+    - name: client
+      port: 9092
+      protocol: TCP
+      targetPort: 9092
+    - name: prometheus
+      port: 9404
+      protocol: TCP
+      targetPort: 9404
+    selector:
+      application: ${APPLICATION_NAME}
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: apps/v1beta1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      image.openshift.io/triggers: >-
+        [{"from":{"kind":"ImageStreamTag","name":"movi-${APPLICATION_NAME}:${KAFKA_ENV}"},"fieldPath":"spec.template.spec.containers[?(@.name==\"${APPLICATION_NAME}\")].image"}]
+    labels:
+      application: ${APPLICATION_NAME}
+    name: ${APPLICATION_NAME}
+  spec:
+    replicas: 3
+    selector:
+      matchLabels:
+        application: ${APPLICATION_NAME}
+    serviceName: ${APPLICATION_NAME}-headless
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          application: ${APPLICATION_NAME}
+      spec:
+        containers:
+        - command:
+          - /config/init.sh
+          env:
+          - name: KAFKA_ADVERTISED_HOST_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: ZOOKEEPER_HOST
+            value: ${ZOOKEEPER_HOST}
+          - name: KAFKA_JVM_PERFORMANCE_OPTS
+            value: >-
+              -server -XX:+UseG1GC -XX:MaxGCPauseMillis=20
+              -XX:InitiatingHeapOccupancyPercent=35
+              -XX:+ExplicitGCInvokesConcurrent -Djava.awt.headless=true
+              -javaagent:/opt/kafka/prometheus/jmx_prometheus_javaagent.jar=9404:/opt/kafka/prometheus/kafka.yaml
+          - name: KAFKA_HEAP_OPTS
+            value: ${KAFKA_HEAP_OPTS}
+          image: "movi-${APPLICATION_NAME}:${KAFKA_ENV}"
+          imagePullPolicy: Always
+          name: ${APPLICATION_NAME}
+          ports:
+          - containerPort: 9092
+            name: server
+            protocol: TCP
+          resources:
+            requests:
+              cpu: 256m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /opt/kafka/data
+            name: datadir
+          - mountPath: /config
+            name: broker-config-volume
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+        volumes:
+          - name: broker-config-volume
+            configMap:
+              name: broker-config
+              defaultMode: 0744
+    updateStrategy:
+      type: RollingUpdate
+    volumeClaimTemplates:
+    - metadata:
+        labels:
+          application: ${APPLICATION_NAME}
+        name: datadir
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: generic
+        resources:
+          requests:
+            storage: 128Gi
+parameters:
+- description: The name for the application.
+  name: APPLICATION_NAME
+  required: true
+  value: kafka
+- description: Zookeeper HOST NAME
+  name: ZOOKEEPER_HOST
+  required: true
+  value: zookeeper
+- description: Kafka Environment
+  name: KAFKA_ENV
+  required: true
+  value: dev
+- description: Kafka heap size
+  name: KAFKA_HEAP_OPTS
+  required: true
+  value: '-Xmx2G  -Xms2G'

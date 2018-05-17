@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: kafka
+metadata:
+  annotations:
+    description: kafka Build Components
+    iconClass: icon-java
+    tags: java, kafka
+  name: kafka-build-template
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    labels:
+      application: kafka
+    name: kafka
+  spec:
+    lookupPolicy:
+      local: true
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      application: kafka
+    name: kafka
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: kafka:${KAFKA_VERSION}
+    source:
+      contextDir: ${CONTEXT_DIR}
+      git:
+        ref: ${SOURCE_REPOSITORY_REF}
+        uri: ${SOURCE_REPOSITORY_URL}
+      type: Git
+    strategy:
+      dockerStrategy:
+        env:
+          - name: KAFKA_VERSION
+            value: ${KAFKA_VERSION}
+          - name: SCALA_VERSION
+            value: ${SCALA_VERSION}
+        forcePull: true
+        from:
+          kind: ImageStreamTag
+          name: ${IMAGE_STREAM_TAG_NAME}
+      type: Docker
+    triggers:
+    - imageChange: {}
+      type: ImageChange
+    - type: ConfigChange
+parameters:
+- description: Path within Git repository to build; empty for root of repository
+  name: CONTEXT_DIR
+  value: kafka/rhel/image
+- description: Image stream tag for the image you'd like to use to build the application
+  name: IMAGE_STREAM_TAG_NAME
+  required: true
+  value: redhat-openjdk-18:latest
+- description: Git branch/tag reference
+  name: SOURCE_REPOSITORY_REF
+  value: master
+- description: Git source URL for application
+  name: SOURCE_REPOSITORY_URL
+  required: true
+  value: https://github.com/shrishs/persistenceservices.git
+- description: Version of Kafka
+  name: KAFKA_VERSION
+  required: true
+  value: 1.0.0
+- description: Version of Kafka
+  name: SCALA_VERSION
+  required: true
+  value: "2.11"

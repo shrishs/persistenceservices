@@ -108,9 +108,8 @@ command.For example if jvm.heap is 2G then limit should be 3G.
       targetPort: 9404
 ```
 
-- Check if the service is up at the following location.
+- Check if the service is up at the prometheus url.
 
-https://prometheus-openshift-metrics.dev.spec.honeywell.com/targets
 
 # upgrading zookeeper base image
 

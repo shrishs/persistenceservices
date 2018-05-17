@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: cassandra
+metadata:
+  annotations:
+    description: cassandra Build Components
+    tags: cassandra
+  name: cassandra-build-template
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    labels:
+      application: cassandra
+    name: cassandra
+  spec:
+    lookupPolicy:
+      local: true
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      application: cassandra
+    name: cassandra
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: 'cassandra:latest'
+    source:
+      contextDir: ${CONTEXT_DIR}
+      git:
+        uri: ${SOURCE_REPOSITORY_URL}
+      type: Git
+    strategy:
+      dockerStrategy:
+        forcePull: true
+        from:
+          kind: ImageStreamTag
+          name: ${IMAGE_STREAM_TAG_NAME}
+      type: Docker
+    triggers:
+      - imageChange: {}
+        type: ImageChange
+      - type: ConfigChange
+parameters:
+- description: Path within Git repository to build; empty for root of repository
+  name: CONTEXT_DIR
+  value: cassandra/image
+- description: Git source URL for application
+  name: SOURCE_REPOSITORY_URL
+  required: true
+  value: https://github.com/shrishs/persistenceservices.git
+- description: Image stream tag for the image you'd like to use to build the application
+  name: IMAGE_STREAM_TAG_NAME
+  required: true
+  value: redhat-openjdk-18:latest
